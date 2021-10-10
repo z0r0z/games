@@ -12,12 +12,12 @@ contract SquishiGame {
     event ClaimWinnings(address indexed player, uint256 indexed winnings);
     
     /// @dev SushiToken
-    ERC20 public constant sushi;
+    ERC20 public immutable sushi;
     
     /// @dev Game variables:
+    uint256 public immutable pot;
     uint256 public immutable gameEnds = block.timestamp + 9 days;
     uint256 public players;
-    uint256 public pot;
     uint256 internal finalPot;
     uint256 public potClaimed;
 
