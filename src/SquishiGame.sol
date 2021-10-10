@@ -11,19 +11,37 @@ contract SquishiGame {
     event Death(address indexed player);
     event ClaimWinnings(address indexed player, uint256 indexed winnings);
     
-    /// @dev SushiToken
-    ERC20 public immutable sushi;
+    /// @dev Token for winnings.
+    ERC20 public immutable token;
     
     /// @dev Game variables:
-    uint256 public immutable pot;
-    uint256 public immutable gameEnds = block.timestamp + 9 days;
+    uint256 public immutable cutOff;
+    uint256 public immutable gameEnds;
+    uint256 public immutable restingRate;
+    uint256 public immutable potDeposit;
+    uint256 public immutable burnDeposit;
+    uint256 public immutable startingHealth;
+    
     uint256 public players;
     uint256 internal finalPot;
     uint256 public potClaimed;
 
-    constructor (ERC20 _sushi) {
-        sushi = _sushi;
-        pot = _sushi.balanceOf(address(this));
+    constructor (
+        ERC20 _token, 
+        uint256 _cutOff, 
+        uint256 _gameEnds, 
+        uint256 _restingRate,
+        uint256 _potDeposit,
+        uint256 _burnDeposit,
+        uint256 _startingHealth
+    ) {
+        token = _token;
+        cutOff = _cutOff;
+        gameEnds = _gameEnds;
+        restingRate = _restingRate;
+        potDeposit = _potDeposit;
+        burnDeposit = _burnDeposit;
+        startingHealth = _startingHealth;
     }
     
     mapping(address => bool) public claimers;
@@ -40,7 +58,7 @@ contract SquishiGame {
     }
     
     modifier rested() {
-        require(block.timestamp - lastActionTimestamp[msg.sender] > 1 hours);
+        require(block.timestamp - lastActionTimestamp[msg.sender] > restingRate);
         _;
     }
     
@@ -52,21 +70,23 @@ contract SquishiGame {
         require(!rip[msg.sender], "ALREADY_DEAD");
         require(!isAlive(msg.sender), "ALREADY_PLAYING");
         require(
-            /// @dev Take 3 sushi to give life to new player.
-            sushi.transferFrom(msg.sender, address(this), 3 ether)
+            token.transferFrom(msg.sender, address(this), potDeposit)
             &&
-            /// @dev Burn 1 sushi to squishi gods.
-            sushi.transfer(address(0xdead), 1 ether)
-            , "SUSHI_TXS_FAILED"
+            token.transfer(address(0xdead), burnDeposit)
+            , "TKN_TXS_FAILED"
         );
         
-        health[msg.sender] = 9;
+        health[msg.sender] = startingHealth;
         players++;
         
         emit Join(msg.sender);
     }
 
     // **** PLAY ****
+    
+    function pot() public view returns (uint256 value) {
+        value = token.balanceOf(address(this));
+    }
     
     /// @notice Check if player is still alive.
     function isAlive(address player) public view returns (bool alive) {
@@ -95,7 +115,7 @@ contract SquishiGame {
     function heal(address friend) public lock rested {
         require(isAlive(msg.sender), "YOU_ARE_DEAD");
         require(isAlive(friend), "THEY_ARE_DEAD");
-        require(health[friend] < 9, "ALREADY_HEALED");
+        require(health[friend] < startingHealth, "ALREADY_HEALED");
         
         health[friend] = health[friend] + 1; 
         
@@ -113,12 +133,12 @@ contract SquishiGame {
         require(!claimers[msg.sender], "CLAIMED");
         
         if (potClaimed == 0) {
-            finalPot = pot;
+            finalPot = pot();
         }
         
         uint256 claim = finalPot / players;
         
-        sushi.transfer(msg.sender, claim);
+        token.transfer(msg.sender, claim);
         
         potClaimed += claim;
         
