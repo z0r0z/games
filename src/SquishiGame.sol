@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+pragma solidity 0.8.6;
 
-pragma solidity 0.8.9;
-
-/// @notice Minimal ERC-20 token interface.
-interface IERC20Minimal { 
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address to, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-}
+import {ERC20} from "solmate/erc20/ERC20.sol";
 
 /// @notice SushiToken Battle Royale on Polygon.
 contract SquishiGame {
@@ -17,22 +11,27 @@ contract SquishiGame {
     event Death(address indexed player);
     event ClaimWinnings(address indexed player, uint256 indexed winnings);
     
-    /// @dev SushiToken on Polygon:
-    IERC20Minimal public constant sushi = IERC20Minimal(0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a);
+    /// @dev SushiToken
+    ERC20 public constant sushi;
     
     /// @dev Game variables:
     uint256 public immutable gameEnds = block.timestamp + 9 days;
     uint256 public players;
-    uint256 public pot = sushi.balanceOf(address(this));
-    uint256 internal finalpot;
+    uint256 public pot;
+    uint256 internal finalPot;
     uint256 public potClaimed;
+
+    constructor (ERC20 _sushi) {
+        sushi = _sushi;
+        pot = _sushi.balanceOf(address(this));
+    }
     
     mapping(address => bool) public claimers;
     mapping(address => bool) public rip; /// @dev Confirms player death.
     mapping(address => uint256) public health;
     mapping(address => uint256) public lastActionTimestamp;
     
-    uint256 internal unlocked;
+    uint256 internal unlocked = 1;
     modifier lock() {
         require(unlocked == 1, "LOCKED");
         unlocked = 2;
@@ -114,10 +113,10 @@ contract SquishiGame {
         require(!claimers[msg.sender], "CLAIMED");
         
         if (potClaimed == 0) {
-            finalpot = pot;
+            finalPot = pot;
         }
         
-        uint256 claim = finalpot / players;
+        uint256 claim = finalPot / players;
         
         sushi.transfer(msg.sender, claim);
         
